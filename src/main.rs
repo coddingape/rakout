@@ -1,96 +1,76 @@
-//! Shows how to render simple primitive shapes with a single color.
-//!
-//! You can toggle wireframes with the space bar except on wasm. Wasm does not support
-//! `POLYGON_MODE_LINE` on the gpu.
+use bevy::{prelude::*, window::WindowResolution};
 
-#[cfg(not(target_arch = "wasm32"))]
-use bevy::sprite::{Wireframe2dConfig, Wireframe2dPlugin};
-use bevy::{
-    window::*,
-    prelude::*,
-    sprite::{MaterialMesh2dBundle, Mesh2dHandle},
-};
+// Component to mark our player rectangle
+#[derive(Component)]
+struct Player;
+
+struct WindowSize;
+
+impl WindowSize {
+    const WIDTH: f32 = 900.0;
+    const HEIGHT: f32 = 600.0;
+}
 
 fn main() {
-    let mut app = App::new();
-    app.add_plugins((
-        DefaultPlugins.set(WindowPlugin{
+    App::new()
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                resolution: WindowResolution::new(500., 300.).with_scale_factor_override(1.0),
+                resolution: WindowResolution::new(WindowSize::WIDTH, WindowSize::HEIGHT),
+                title: "My Bevy Game".to_string(),
                 ..default()
             }),
             ..default()
-        }),
-        #[cfg(not(target_arch = "wasm32"))]
-        Wireframe2dPlugin,
-    ))
-    .add_systems(Startup, setup);
-    #[cfg(not(target_arch = "wasm32"))]
-    app.add_systems(Update, toggle_wireframe);
-    app.run();
+        }))
+        .add_systems(Startup, setup)
+        .add_systems(Update, player_movement)
+        .run();
 }
 
-const X_EXTENT: f32 = 500.;
-
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
+fn setup(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 
-    let circle = Mesh2dHandle(meshes.add(Circle { radius: 50.0 }));
-    let color = Color::hsl(0., 1., 0.5);
-
-    commands.spawn(MaterialMesh2dBundle{
-        mesh: circle,
-        material: materials.add(color),
-        transform: Transform::from_xyz(
-            0.0,
-            0.0,
-            0.0,
-        ),
-        ..default()
-    });
-
-
-
-    // for (i, shape) in shapes.into_iter().enumerate() {
-    //     // Distribute colors evenly across the rainbow.
-    //     let color = Color::hsl(360. * i as f32 / num_shapes as f32, 0.95, 0.7);
-    //
-    //     commands.spawn(MaterialMesh2dBundle {
-    //         mesh: shape,
-    //         material: materials.add(color),
-    //         transform: Transform::from_xyz(
-    //             // Distribute shapes from -X_EXTENT/2 to +X_EXTENT/2.
-    //             -X_EXTENT / 2. + i as f32 / (2 - 1) as f32 * X_EXTENT,
-    //             0.0,
-    //             0.0,
-    //         ),
-    //         ..default()
-    //     });
-    //
-    // }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    commands.spawn(
-        TextBundle::from_section("Press space to toggle wireframes", TextStyle::default())
-            .with_style(Style {
-                position_type: PositionType::Absolute,
-                top: Val::Px(12.0),
-                left: Val::Px(12.0),
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::srgb(1., 0., 0.),
+                custom_size: Some(Vec2::new(50.0, 10.0)),
                 ..default()
-            }),
-    );
+            },
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            ..default()
+        },
+        Player,
+    ));
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn toggle_wireframe(
-    mut wireframe_config: ResMut<Wireframe2dConfig>,
-    keyboard: Res<ButtonInput<KeyCode>>,
+fn player_movement(
+    mut query: Query<(&mut Transform, &Sprite), With<Player>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    window: Query<&Window>,
 ) {
-    if keyboard.just_pressed(KeyCode::Space) {
-        wireframe_config.global = !wireframe_config.global;
+    let (mut transform, sprite) = query.single_mut();
+    let window = window.single();
+
+    let mut direction = 0.0;
+    if keyboard_input.pressed(KeyCode::ArrowLeft) {
+        direction -= 1.0;
     }
+    if keyboard_input.pressed(KeyCode::ArrowRight) {
+        direction += 1.0;
+    }
+
+    let speed = 500.0; // pixels per second
+    let movement = direction * speed * time.delta_seconds();
+
+    // Calculate new position
+    let new_x = transform.translation.x + movement;
+
+    // Calculate boundaries
+    let half_sprite_width = sprite.custom_size.unwrap().x / 2.0;
+    let left_bound = -window.width() / 2.0 + half_sprite_width;
+    let right_bound = window.width() / 2.0 - half_sprite_width;
+
+    // Clamp the new position within bounds
+    transform.translation.x = new_x.clamp(left_bound, right_bound);
 }
