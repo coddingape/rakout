@@ -2,7 +2,7 @@ use bevy::{prelude::*, window::WindowResolution};
 
 // Component to mark our player rectangle
 #[derive(Component)]
-struct Player;
+struct Paddle;
 
 struct WindowSize;
 
@@ -22,29 +22,39 @@ fn main() {
             ..default()
         }))
         .add_systems(Startup, setup)
-        .add_systems(Update, player_movement)
+        .add_systems(Update, paddle_movement)
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, window: Query<&Window>) {
+    let window = window.single();
+
     commands.spawn(Camera2dBundle::default());
+
+    let paddle_width = 100.0;
+    let paddle_height = 20.0;
+    let padding = 40.0;
 
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
                 color: Color::srgb(1., 0., 0.),
-                custom_size: Some(Vec2::new(50.0, 10.0)),
+                custom_size: Some(Vec2::new(paddle_width, paddle_height)),
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            transform: Transform::from_xyz(
+                0.0,
+                -window.height() / 2.0 + paddle_height / 2.0 + padding,
+                0.0
+            ),
             ..default()
         },
-        Player,
+        Paddle,
     ));
 }
 
-fn player_movement(
-    mut query: Query<(&mut Transform, &Sprite), With<Player>>,
+fn paddle_movement(
+    mut query: Query<(&mut Transform, &Sprite), With<Paddle>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     window: Query<&Window>,
